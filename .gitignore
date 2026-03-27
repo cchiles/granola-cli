@@ -1,0 +1,7 @@
+node_modules/
+dist/
+granola
+.env
+docs/
+.claude/
+.cursor/
