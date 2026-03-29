@@ -4,6 +4,14 @@ A simple CLI for [Granola](https://granola.ai) meeting notes.
 
 ## Install
 
+### Homebrew
+
+```bash
+brew install cchiles/tap/granola
+```
+
+### Script
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/cchiles/granola-cli/main/install.sh | bash
 ```

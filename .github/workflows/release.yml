@@ -46,3 +46,52 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: gh release create ${{ github.ref_name }} granola-darwin-* --title "${{ github.ref_name }}" --generate-notes
+
+      - name: Update Homebrew formula
+        env:
+          GH_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+        run: |
+          VERSION="${{ github.ref_name }}"
+          VERSION="${VERSION#v}"
+          SHA_ARM64=$(sha256sum granola-darwin-arm64 | cut -d' ' -f1)
+          SHA_X64=$(sha256sum granola-darwin-x64 | cut -d' ' -f1)
+
+          git clone https://x-access-token:${GH_TOKEN}@github.com/cchiles/homebrew-tap.git tap
+          cd tap
+
+          cat > Formula/granola.rb << FORMULA
+          class Granola < Formula
+            desc "CLI for Granola meeting notes"
+            homepage "https://github.com/cchiles/granola-cli"
+            version "${VERSION}"
+            license "MIT"
+
+            on_macos do
+              if Hardware::CPU.arm?
+                url "https://github.com/cchiles/granola-cli/releases/download/v#{version}/granola-darwin-arm64"
+                sha256 "${SHA_ARM64}"
+              else
+                url "https://github.com/cchiles/granola-cli/releases/download/v#{version}/granola-darwin-x64"
+                sha256 "${SHA_X64}"
+              end
+            end
+
+            def install
+              binary = Hardware::CPU.arm? ? "granola-darwin-arm64" : "granola-darwin-x64"
+              bin.install binary => "granola"
+            end
+
+            test do
+              assert_match version.to_s, shell_output("#{bin}/granola --version")
+            end
+          end
+          FORMULA
+
+          # Remove leading whitespace from heredoc
+          sed -i 's/^          //' Formula/granola.rb
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add Formula/granola.rb
+          git commit -m "Update granola to ${VERSION}"
+          git push
