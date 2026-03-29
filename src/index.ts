@@ -181,8 +181,29 @@ const DATE_SHORTCUTS: Record<string, () => { after: string; before: string }> = 
   },
 }
 
-export function resolveDateRange(shortcut: string): { after: string; before: string } | null {
-  return DATE_SHORTCUTS[shortcut]?.() ?? null
+const RELATIVE_PATTERN = /^(\d+)([dwm])$/
+
+function resolveRelativeRange(input: string): { after: string; before: string } | null {
+  const match = input.match(RELATIVE_PATTERN)
+  if (!match) return null
+  const count = parseInt(match[1], 10)
+  const unit = match[2]
+  const now = new Date()
+  const start = new Date(now)
+
+  if (unit === "d") {
+    start.setDate(start.getDate() - count)
+  } else if (unit === "w") {
+    start.setDate(start.getDate() - count * 7)
+  } else if (unit === "m") {
+    start.setMonth(start.getMonth() - count)
+  }
+
+  return { after: start.toISOString(), before: now.toISOString() }
+}
+
+export function resolveDateRange(input: string): { after: string; before: string } | null {
+  return DATE_SHORTCUTS[input]?.() ?? resolveRelativeRange(input) ?? null
 }
 
 async function fetchAllNotes(
@@ -219,7 +240,7 @@ Options:
   --version, -v             Show version
 
 List options:
-  --date-range <range>      ${DATE_RANGE_VALUES}
+  --date-range <range>      ${DATE_RANGE_VALUES}, or relative: 2d, 3w, 2m
   --from <date>             Filter: created after date
   --to <date>               Filter: created before date
   --cursor <cursor>         Pagination cursor
