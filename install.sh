@@ -21,7 +21,12 @@ if [ "$ARCH" != "arm64" ] && [ "$ARCH" != "x86_64" ]; then
   exit 1
 fi
 
-ASSET="granola-darwin-${ARCH}"
+case "$ARCH" in
+  x86_64) ARCH_LABEL="x64" ;;
+  arm64)  ARCH_LABEL="arm64" ;;
+esac
+
+ASSET="granola-darwin-${ARCH_LABEL}"
 
 # Download from latest release
 DOWNLOAD_URL="https://github.com/${REPO}/releases/latest/download/${ASSET}"
