@@ -9,6 +9,7 @@ import {
   saveApiKey,
   listNotes,
   getNote,
+  resolveDateRange,
   type NoteSummary,
   type Note,
 } from "../src/index"
@@ -130,5 +131,57 @@ describe("API", () => {
     }) as typeof fetch
 
     await expect(listNotes("bad-key", {})).rejects.toThrow("401")
+  })
+
+  it("getNote fetches multiple IDs concurrently", async () => {
+    let callCount = 0
+    globalThis.fetch = mock(async (url: string) => {
+      callCount++
+      const id = url.includes("id-1") ? "id-1" : "id-2"
+      return new Response(
+        JSON.stringify({ id, title: `Note ${id}`, summary_text: "" })
+      )
+    }) as typeof fetch
+
+    const [n1, n2] = await Promise.all([
+      getNote("test-key", "id-1", {}),
+      getNote("test-key", "id-2", {}),
+    ])
+    expect(n1.id).toBe("id-1")
+    expect(n2.id).toBe("id-2")
+    expect(callCount).toBe(2)
+  })
+})
+
+describe("date shortcuts", () => {
+  it("today returns start and end of current day", () => {
+    const range = resolveDateRange("today")!
+    const after = new Date(range.after)
+    const before = new Date(range.before)
+    expect(before.getTime() - after.getTime()).toBe(86400000)
+    expect(after.getHours()).toBe(0)
+    expect(after.getMinutes()).toBe(0)
+  })
+
+  it("yesterday returns the previous day", () => {
+    const range = resolveDateRange("yesterday")!
+    const after = new Date(range.after)
+    const before = new Date(range.before)
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    expect(before.getTime()).toBe(today.getTime())
+    expect(before.getTime() - after.getTime()).toBe(86400000)
+  })
+
+  it("last_week returns 7-day range ending at this week's start", () => {
+    const range = resolveDateRange("last_week")!
+    const after = new Date(range.after)
+    const before = new Date(range.before)
+    expect(before.getTime() - after.getTime()).toBe(7 * 86400000)
+    expect(before.getDay()).toBe(0) // Sunday = start of week
+  })
+
+  it("returns null for unknown shortcuts", () => {
+    expect(resolveDateRange("next_year")).toBeNull()
   })
 })

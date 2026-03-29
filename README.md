@@ -30,16 +30,38 @@ export GRANOLA_API_KEY=YOUR_API_KEY
 ```bash
 # List recent notes
 granola list
-granola list --limit 20 --created-after 2025-01-01
+granola list --limit 20 --from 2025-01-01
+granola list --from 2025-03-01 --to 2025-03-15
 granola list --json | jq '.notes[].title'
+
+# Quick date ranges (auto-paginates all results)
+granola list --date-range today
+granola list --date-range yesterday
+granola list --date-range this_week
+granola list --date-range last_week
+granola list --date-range this_month
+granola list --date-range last_month
 
 # Get a specific note
 granola get not_1d3tmYTlCICgjy
 granola get not_1d3tmYTlCICgjy --transcript
 granola get not_1d3tmYTlCICgjy --json > note.json
+
+# Get multiple notes at once
+granola get id1 id2 id3
+
+# Get full details for all notes in a date range
+granola get --date-range today
+granola get --date-range last_week --transcript
 ```
 
 Run `granola --help` for all options.
+
+## Update
+
+```bash
+granola update
+```
 
 ## Uninstall
 

@@ -76,13 +76,12 @@ async function api<T>(apiKey: string, path: string, params?: URLSearchParams): P
 
 export async function listNotes(
   apiKey: string,
-  opts: { createdBefore?: string; createdAfter?: string; updatedAfter?: string; cursor?: string; limit?: number }
+  opts: { createdBefore?: string; createdAfter?: string; cursor?: string; limit?: number }
 ): Promise<ListResponse> {
   const p = new URLSearchParams()
   p.set("page_size", String(opts.limit ?? 10))
   if (opts.createdBefore) p.set("created_before", opts.createdBefore)
   if (opts.createdAfter) p.set("created_after", opts.createdAfter)
-  if (opts.updatedAfter) p.set("updated_after", opts.updatedAfter)
   if (opts.cursor) p.set("cursor", opts.cursor)
   return api<ListResponse>(apiKey, "/notes", p)
 }
@@ -139,7 +138,71 @@ function formatNote(note: Note): string {
   return lines.join("\n")
 }
 
+// --- Date shortcuts ---
+
+const DATE_SHORTCUTS: Record<string, () => { after: string; before: string }> = {
+  today: () => {
+    const d = new Date()
+    const start = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+    const end = new Date(start.getTime() + 86400000)
+    return { after: start.toISOString(), before: end.toISOString() }
+  },
+  yesterday: () => {
+    const d = new Date()
+    const end = new Date(d.getFullYear(), d.getMonth(), d.getDate())
+    const start = new Date(end.getTime() - 86400000)
+    return { after: start.toISOString(), before: end.toISOString() }
+  },
+  this_week: () => {
+    const d = new Date()
+    const day = d.getDay()
+    const start = new Date(d.getFullYear(), d.getMonth(), d.getDate() - day)
+    const end = new Date(start.getTime() + 7 * 86400000)
+    return { after: start.toISOString(), before: end.toISOString() }
+  },
+  last_week: () => {
+    const d = new Date()
+    const day = d.getDay()
+    const thisWeekStart = new Date(d.getFullYear(), d.getMonth(), d.getDate() - day)
+    const start = new Date(thisWeekStart.getTime() - 7 * 86400000)
+    return { after: start.toISOString(), before: thisWeekStart.toISOString() }
+  },
+  this_month: () => {
+    const d = new Date()
+    const start = new Date(d.getFullYear(), d.getMonth(), 1)
+    const end = new Date(d.getFullYear(), d.getMonth() + 1, 1)
+    return { after: start.toISOString(), before: end.toISOString() }
+  },
+  last_month: () => {
+    const d = new Date()
+    const start = new Date(d.getFullYear(), d.getMonth() - 1, 1)
+    const end = new Date(d.getFullYear(), d.getMonth(), 1)
+    return { after: start.toISOString(), before: end.toISOString() }
+  },
+}
+
+export function resolveDateRange(shortcut: string): { after: string; before: string } | null {
+  return DATE_SHORTCUTS[shortcut]?.() ?? null
+}
+
+async function fetchAllNotes(
+  apiKey: string,
+  opts: { createdBefore?: string; createdAfter?: string }
+): Promise<NoteSummary[]> {
+  const allNotes: NoteSummary[] = []
+  let cursor: string | undefined
+  do {
+    const data = await listNotes(apiKey, { ...opts, limit: 30, cursor })
+    allNotes.push(...data.notes)
+    cursor = data.hasMore && data.cursor ? data.cursor : undefined
+    if (cursor) console.error(`Fetched ${allNotes.length} notes...`)
+  } while (cursor)
+  return allNotes
+}
+
 // --- CLI ---
+
+const DATE_RANGE_VALUES = Object.keys(DATE_SHORTCUTS).join(", ")
 
 const HELP = `granola - CLI for Granola meeting notes
 
@@ -148,22 +211,25 @@ Usage: granola <command> [options]
 Commands:
   config [api-key]          Configure API key (prompts if no key given)
   list                      List meeting notes
-  get <note-id>             Get a meeting note by ID
+  get <note-id> [...]       Get one or more meeting notes by ID
+  update                    Update to the latest version
 
 Options:
   --help, -h                Show help
   --version, -v             Show version
 
 List options:
-  --created-before <date>   Filter by creation date
-  --created-after <date>    Filter by creation date
-  --updated-after <date>    Filter by update date
+  --date-range <range>      ${DATE_RANGE_VALUES}
+  --from <date>             Filter: created after date
+  --to <date>               Filter: created before date
   --cursor <cursor>         Pagination cursor
   --limit <n>               Notes per page (1-30, default 10)
   --all                     Fetch all notes (auto-paginates)
   --json                    Output raw JSON
 
 Get options:
+  <note-id> [...]           One or more note IDs
+  --date-range <range>      Fetch full details for all notes in range
   --transcript              Include transcript
   --json                    Output raw JSON
 
@@ -179,7 +245,7 @@ async function main() {
     return
   }
   if (command === "--version" || command === "-v") {
-    console.log("0.1.0")
+    console.log("0.1.1")
     return
   }
 
@@ -216,9 +282,9 @@ async function main() {
     const { values } = parseArgs({
       args: args.slice(1),
       options: {
-        "created-before": { type: "string" },
-        "created-after": { type: "string" },
-        "updated-after": { type: "string" },
+        "date-range": { type: "string" },
+        from: { type: "string" },
+        to: { type: "string" },
         cursor: { type: "string" },
         limit: { type: "string", default: "10" },
         all: { type: "boolean", default: false },
@@ -227,23 +293,27 @@ async function main() {
       strict: false,
     })
 
+    if (values["date-range"]) {
+      const range = resolveDateRange(values["date-range"])
+      if (!range) {
+        console.error(`Unknown date range: "${values["date-range"]}". Valid: ${DATE_RANGE_VALUES}`)
+        process.exit(2)
+      }
+      const notes = await fetchAllNotes(apiKey, { createdAfter: range.after, createdBefore: range.before })
+      const result: ListResponse = { notes, hasMore: false, cursor: null }
+      console.log(values.json ? JSON.stringify(result, null, 2) : formatList(result))
+      return
+    }
+
     const baseOpts = {
-      createdBefore: values["created-before"],
-      createdAfter: values["created-after"],
-      updatedAfter: values["updated-after"],
+      createdBefore: values.to,
+      createdAfter: values.from,
       limit: values.all ? 30 : parseInt(values.limit!, 10),
     }
 
     if (values.all) {
-      const allNotes: NoteSummary[] = []
-      let cursor: string | undefined
-      do {
-        const data = await listNotes(apiKey, { ...baseOpts, cursor })
-        allNotes.push(...data.notes)
-        cursor = data.hasMore && data.cursor ? data.cursor : undefined
-        if (cursor) console.error(`Fetched ${allNotes.length} notes...`)
-      } while (cursor)
-      const result: ListResponse = { notes: allNotes, hasMore: false, cursor: null }
+      const notes = await fetchAllNotes(apiKey, baseOpts)
+      const result: ListResponse = { notes, hasMore: false, cursor: null }
       console.log(values.json ? JSON.stringify(result, null, 2) : formatList(result))
     } else {
       const data = await listNotes(apiKey, { ...baseOpts, cursor: values.cursor })
@@ -256,20 +326,72 @@ async function main() {
     const { values, positionals } = parseArgs({
       args: args.slice(1),
       options: {
+        "date-range": { type: "string" },
         transcript: { type: "boolean", default: false },
         json: { type: "boolean", default: false },
       },
       allowPositionals: true,
     })
 
-    const noteId = positionals[0]
-    if (!noteId) {
-      console.error("Usage: granola get <note-id> [--transcript] [--json]")
+    let noteIds = positionals
+
+    if (values["date-range"]) {
+      const range = resolveDateRange(values["date-range"])
+      if (!range) {
+        console.error(`Unknown date range: "${values["date-range"]}". Valid: ${DATE_RANGE_VALUES}`)
+        process.exit(2)
+      }
+      const summaries = await fetchAllNotes(apiKey, { createdAfter: range.after, createdBefore: range.before })
+      if (summaries.length === 0) {
+        console.log("No notes found.")
+        return
+      }
+      console.error(`Fetching ${summaries.length} note(s)...`)
+      noteIds = summaries.map((n) => n.id)
+    }
+
+    if (noteIds.length === 0) {
+      console.error("Usage: granola get <note-id> [...] [--date-range <range>] [--transcript] [--json]")
       process.exit(2)
     }
 
-    const note = await getNote(apiKey, noteId, { transcript: values.transcript })
-    console.log(values.json ? JSON.stringify(note, null, 2) : formatNote(note))
+    const notes = await Promise.all(
+      noteIds.map((id) => getNote(apiKey, id, { transcript: values.transcript }))
+    )
+
+    if (values.json) {
+      console.log(JSON.stringify(notes.length === 1 ? notes[0] : notes, null, 2))
+    } else {
+      console.log(notes.map(formatNote).join("\n\n---\n\n"))
+    }
+    return
+  }
+
+  if (command === "update") {
+    const res = await fetch("https://api.github.com/repos/cchiles/granola-cli/releases/latest")
+    if (!res.ok) {
+      console.error("Failed to check for updates.")
+      process.exit(1)
+    }
+    const release = (await res.json()) as { tag_name: string }
+    const latest = release.tag_name.replace(/^v/, "")
+    const current = "0.1.1"
+
+    if (latest === current) {
+      console.log(`Already on the latest version (${current}).`)
+      return
+    }
+
+    console.log(`Updating: ${current} → ${latest}`)
+    const proc = Bun.spawn(["bash", "-c", "curl -fsSL https://raw.githubusercontent.com/cchiles/granola-cli/main/install.sh | bash"], {
+      stdout: "inherit",
+      stderr: "inherit",
+    })
+    const exitCode = await proc.exited
+    if (exitCode !== 0) {
+      console.error("Update failed.")
+      process.exit(1)
+    }
     return
   }
 
