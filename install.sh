@@ -2,8 +2,16 @@
 set -euo pipefail
 
 REPO="cchiles/granola-cli"
-INSTALL_DIR="${GRANOLA_INSTALL_DIR:-$HOME/.local/bin}"
 BINARY_NAME="granola"
+
+# Determine install directory: env override > /usr/local/bin (if writable) > ~/.local/bin
+if [ -n "${GRANOLA_INSTALL_DIR:-}" ]; then
+  INSTALL_DIR="$GRANOLA_INSTALL_DIR"
+elif [ -w /usr/local/bin ]; then
+  INSTALL_DIR="/usr/local/bin"
+else
+  INSTALL_DIR="$HOME/.local/bin"
+fi
 
 echo "Installing granola-cli..."
 
