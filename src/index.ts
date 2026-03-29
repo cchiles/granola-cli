@@ -293,6 +293,34 @@ async function main() {
     return
   }
 
+  if (command === "update") {
+    const res = await fetch("https://api.github.com/repos/cchiles/granola-cli/releases/latest")
+    if (!res.ok) {
+      console.error("Failed to check for updates.")
+      process.exit(1)
+    }
+    const release = (await res.json()) as { tag_name: string }
+    const latest = release.tag_name.replace(/^v/, "")
+    const current = "0.1.3"
+
+    if (latest === current) {
+      console.log(`Already on the latest version (${current}).`)
+      return
+    }
+
+    console.log(`Updating: ${current} → ${latest}`)
+    const proc = Bun.spawn(["bash", "-c", "curl -fsSL https://raw.githubusercontent.com/cchiles/granola-cli/main/install.sh | bash"], {
+      stdout: "inherit",
+      stderr: "inherit",
+    })
+    const exitCode = await proc.exited
+    if (exitCode !== 0) {
+      console.error("Update failed.")
+      process.exit(1)
+    }
+    return
+  }
+
   const apiKey = await loadApiKey()
   if (!apiKey) {
     console.error('No API key. Run "granola config" or set GRANOLA_API_KEY.')
@@ -384,34 +412,6 @@ async function main() {
       console.log(JSON.stringify(notes.length === 1 ? notes[0] : notes, null, 2))
     } else {
       console.log(notes.map(formatNote).join("\n\n---\n\n"))
-    }
-    return
-  }
-
-  if (command === "update") {
-    const res = await fetch("https://api.github.com/repos/cchiles/granola-cli/releases/latest")
-    if (!res.ok) {
-      console.error("Failed to check for updates.")
-      process.exit(1)
-    }
-    const release = (await res.json()) as { tag_name: string }
-    const latest = release.tag_name.replace(/^v/, "")
-    const current = "0.1.1"
-
-    if (latest === current) {
-      console.log(`Already on the latest version (${current}).`)
-      return
-    }
-
-    console.log(`Updating: ${current} → ${latest}`)
-    const proc = Bun.spawn(["bash", "-c", "curl -fsSL https://raw.githubusercontent.com/cchiles/granola-cli/main/install.sh | bash"], {
-      stdout: "inherit",
-      stderr: "inherit",
-    })
-    const exitCode = await proc.exited
-    if (exitCode !== 0) {
-      console.error("Update failed.")
-      process.exit(1)
     }
     return
   }
