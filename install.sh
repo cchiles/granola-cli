@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO="cchiles/granola-cli"
-INSTALL_DIR="/usr/local/bin"
+INSTALL_DIR="${GRANOLA_INSTALL_DIR:-$HOME/.local/bin}"
 BINARY_NAME="granola"
 
 echo "Installing granola-cli..."
@@ -48,15 +48,28 @@ if ! "$TMPFILE" --version &>/dev/null; then
 fi
 
 # Install
-if [ -w "$INSTALL_DIR" ]; then
-  install -m 755 "$TMPFILE" "$INSTALL_DIR/$BINARY_NAME"
-else
-  echo "Installing to $INSTALL_DIR (requires sudo)..."
-  sudo install -m 755 "$TMPFILE" "$INSTALL_DIR/$BINARY_NAME"
-fi
+mkdir -p "$INSTALL_DIR"
+install -m 755 "$TMPFILE" "$INSTALL_DIR/$BINARY_NAME"
 
 echo ""
-echo "Installed! Run 'granola --help' to verify."
+echo "Installed to $INSTALL_DIR/$BINARY_NAME"
+
+# Check if INSTALL_DIR is in PATH
+case ":$PATH:" in
+  *":$INSTALL_DIR:"*) ;;
+  *)
+    echo ""
+    echo "WARNING: $INSTALL_DIR is not in your PATH."
+    echo "Add it by running:"
+    echo ""
+    echo "  export PATH=\"$INSTALL_DIR:\$PATH\""
+    echo ""
+    echo "Or add that line to your ~/.zshrc or ~/.bashrc."
+    ;;
+esac
+
+echo ""
+echo "Run 'granola --help' to verify."
 echo ""
 echo "To configure your API key, run:"
 echo ""

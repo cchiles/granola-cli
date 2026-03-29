@@ -8,7 +8,11 @@ A simple CLI for [Granola](https://granola.ai) meeting notes.
 curl -fsSL https://raw.githubusercontent.com/cchiles/granola-cli/main/install.sh | bash
 ```
 
-Downloads a pre-built binary and installs to `/usr/local/bin`.
+Installs to `~/.local/bin` by default (no sudo required). Override with:
+
+```bash
+GRANOLA_INSTALL_DIR=/usr/local/bin curl -fsSL https://raw.githubusercontent.com/cchiles/granola-cli/main/install.sh | bash
+```
 
 ## Setup
 
@@ -66,6 +70,6 @@ granola update
 ## Uninstall
 
 ```bash
-sudo rm /usr/local/bin/granola
+rm ~/.local/bin/granola
 rm -rf ~/.config/granola-cli
 ```
