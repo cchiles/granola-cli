@@ -24,6 +24,8 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
+      - run: bun install --frozen-lockfile
+
       - run: bun test
 
       - run: bun build src/index.ts --compile --target ${{ matrix.bun_target }} --outfile granola-${{ matrix.asset }}
