@@ -8,7 +8,18 @@ You should always reference the Granola API documentation. This is being updated
 - https://docs.granola.ai/introduction.md
 - https://docs.granola.ai/api-reference/list-notes.md
 - https://docs.granola.ai/api-reference/get-note
+- https://docs.granola.ai/api-reference/list-folders.md
 - https://docs.granola.ai/api-reference/openapi.json
 
-## Architecure
-You should use Bun for packaging and TypeScript.
+Types in `src/api/types.ts` track the OpenAPI schemas for notes and folders. Keep them in sync when the API changes.
+
+## Architecture
+Use Bun for packaging and TypeScript.
+
+Module layout:
+
+- `src/api/` — typed HTTP client and OpenAPI-aligned types
+- `src/commands/` — citty subcommands (`list`, `get`, `folders`, `config`, `update`)
+- `src/format/` — human-readable output
+- `src/config.ts` — API key storage (`GRANOLA_API_KEY` / config file)
+- `src/cli.ts` — root command

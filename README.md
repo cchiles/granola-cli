@@ -1,6 +1,8 @@
 # granola-cli
 
-A simple CLI for [Granola](https://granola.ai) meeting notes.
+A CLI for [Granola](https://granola.ai) meeting notes, built with Bun and TypeScript.
+
+Types and endpoints track the [Granola public API](https://docs.granola.ai/introduction.md).
 
 ## Install
 
@@ -24,7 +26,7 @@ Installs to `/usr/local/bin` if writable, otherwise `~/.local/bin`. Override wit
 granola config
 ```
 
-This will prompt you for your API key with instructions on where to find it.
+This prompts for your API key. Create one in the Granola desktop app under **Settings → Connectors → API keys**.
 
 You can also pass the key directly or use an environment variable:
 
@@ -33,6 +35,8 @@ granola config YOUR_API_KEY
 export GRANOLA_API_KEY=YOUR_API_KEY
 ```
 
+Optional: override the API base URL with `GRANOLA_API_BASE` (default `https://public-api.granola.ai/v1`).
+
 ## Usage
 
 ```bash
@@ -40,6 +44,8 @@ export GRANOLA_API_KEY=YOUR_API_KEY
 granola list
 granola list --limit 20 --from 2025-01-01
 granola list --from 2025-03-01 --to 2025-03-15
+granola list --updated-after 2025-03-01
+granola list --folder-id fol_4y6LduVdwSKC27
 granola list --json | jq '.notes[].title'
 
 # Quick date ranges (auto-paginates all results)
@@ -49,6 +55,10 @@ granola list --date-range this_week
 granola list --date-range last_week
 granola list --date-range this_month
 granola list --date-range last_month
+
+# List folders (for discovering folder IDs)
+granola folders
+granola folders --all --json
 
 # Get a specific note
 granola get not_1d3tmYTlCICgjy
